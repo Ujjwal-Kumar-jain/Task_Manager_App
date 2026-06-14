@@ -1,82 +1,136 @@
-import axiosInstance from "../utils/axiosInstance";
+import mockDB from "./mockDB";
 
-/**
- * Task Management Service
- * Handles CRUD operations, status updates, and dashboard statistics for tasks.
- */
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const getCurrentUser = () => JSON.parse(localStorage.getItem("current_user"));
+
 const taskService = {
-  /**
-   * Fetch all tasks with optional status filter.
-   * Admins get all, users get their assigned tasks.
-   */
   async getTasks(status = "") {
-    const url = status ? `/tasks?status=${status}` : "/tasks";
-    const response = await axiosInstance.get(url);
-    return response.data;
+    await delay(300);
+    const currentUser = getCurrentUser();
+    if (!currentUser) throw { response: { data: { message: "Unauthorized" } } };
+    
+    let tasks = mockDB.getTasks();
+    
+    if (currentUser.role !== "admin") {
+      tasks = tasks.filter(t => t.team && t.team.includes(currentUser._id) || t.assignedTo === currentUser._id);
+    }
+    
+    if (status) {
+      tasks = tasks.filter(t => t.status === status);
+    }
+    
+    return { success: true, data: tasks, message: "Tasks fetched" };
   },
 
-  /**
-   * Create a new task (Admin only).
-   */
   async createTask(taskData) {
-    const response = await axiosInstance.post("/tasks/create", taskData);
-    return response.data;
+    await delay(400);
+    const currentUser = getCurrentUser();
+    if (!currentUser || currentUser.role !== "admin") throw { response: { data: { message: "Unauthorized" } } };
+
+    const tasks = mockDB.getTasks();
+    const newTask = {
+      _id: mockDB.generateId(),
+      ...taskData,
+      status: taskData.status || "Pending",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    
+    tasks.push(newTask);
+    mockDB.setTasks(tasks);
+    return { success: true, data: newTask, message: "Task created" };
   },
 
-  /**
-   * Update task details (Admin only).
-   */
   async updateTask(id, taskData) {
-    const response = await axiosInstance.put(`/tasks/${id}`, taskData);
-    return response.data;
+    await delay(400);
+    const currentUser = getCurrentUser();
+    if (!currentUser || currentUser.role !== "admin") throw { response: { data: { message: "Unauthorized" } } };
+
+    const tasks = mockDB.getTasks();
+    const index = tasks.findIndex(t => t._id === id);
+    if (index === -1) throw { response: { data: { message: "Task not found" } } };
+
+    tasks[index] = { ...tasks[index], ...taskData, updatedAt: new Date().toISOString() };
+    mockDB.setTasks(tasks);
+    return { success: true, data: tasks[index], message: "Task updated" };
   },
 
-  /**
-   * Delete a task (Admin only).
-   */
   async deleteTask(id) {
-    const response = await axiosInstance.delete(`/tasks/${id}`);
-    return response.data;
+    await delay(300);
+    const currentUser = getCurrentUser();
+    if (!currentUser || currentUser.role !== "admin") throw { response: { data: { message: "Unauthorized" } } };
+
+    let tasks = mockDB.getTasks();
+    tasks = tasks.filter(t => t._id !== id);
+    mockDB.setTasks(tasks);
+    return { success: true, message: "Task deleted" };
   },
 
-  /**
-   * Update task status (Pending, In Progress, Completed).
-   */
   async updateTaskStatus(id, status) {
-    const response = await axiosInstance.put(`/tasks/${id}/status`, { status });
-    return response.data;
+    await delay(300);
+    const tasks = mockDB.getTasks();
+    const index = tasks.findIndex(t => t._id === id);
+    if (index === -1) throw { response: { data: { message: "Task not found" } } };
+
+    tasks[index].status = status;
+    tasks[index].updatedAt = new Date().toISOString();
+    mockDB.setTasks(tasks);
+    return { success: true, data: tasks[index], message: "Status updated" };
   },
 
-  /**
-   * Update task checklist and recalculate progress.
-   */
   async updateTaskChecklist(id, todoChecklist) {
-    const response = await axiosInstance.put(`/tasks/${id}/todo`, { todoChecklist });
-    return response.data;
+    await delay(300);
+    const tasks = mockDB.getTasks();
+    const index = tasks.findIndex(t => t._id === id);
+    if (index === -1) throw { response: { data: { message: "Task not found" } } };
+
+    tasks[index].todoChecklist = todoChecklist;
+    tasks[index].updatedAt = new Date().toISOString();
+    mockDB.setTasks(tasks);
+    return { success: true, data: tasks[index], message: "Checklist updated" };
   },
 
-  /**
-   * Fetch dashboard statistics for Admin.
-   */
   async getAdminDashboardData() {
-    const response = await axiosInstance.get("/tasks/dashboard-data");
-    return response.data;
+    await delay(300);
+    const tasks = mockDB.getTasks();
+    const users = mockDB.getUsers();
+    
+    const totalTasks = tasks.length;
+    const completedTasks = tasks.filter(t => t.status === "Completed").length;
+    const pendingTasks = tasks.filter(t => t.status === "Pending" || t.status === "In Progress").length;
+    const totalUsers = users.length;
+    
+    return { 
+      success: true,
+      data: { totalTasks, completedTasks, pendingTasks, totalUsers },
+      message: "Dashboard data fetched"
+    };
   },
 
-  /**
-   * Fetch dashboard statistics for individual User.
-   */
   async getUserDashboardData() {
-    const response = await axiosInstance.get("/tasks/user-dashboard-data");
-    return response.data;
+    await delay(300);
+    const currentUser = getCurrentUser();
+    if (!currentUser) throw { response: { data: { message: "Unauthorized" } } };
+    
+    const tasks = mockDB.getTasks().filter(t => t.team && t.team.includes(currentUser._id) || t.assignedTo === currentUser._id);
+    
+    const totalTasks = tasks.length;
+    const completedTasks = tasks.filter(t => t.status === "Completed").length;
+    const pendingTasks = tasks.filter(t => t.status === "Pending" || t.status === "In Progress").length;
+    
+    return {
+      success: true,
+      data: { totalTasks, completedTasks, pendingTasks },
+      message: "User dashboard data fetched"
+    };
   },
 
-  /**
-   * Fetch a single task by its ID.
-   */
   async getTaskById(id) {
-    const response = await axiosInstance.get(`/tasks/${id}`);
-    return response.data;
+    await delay(200);
+    const tasks = mockDB.getTasks();
+    const task = tasks.find(t => t._id === id);
+    if (!task) throw { response: { data: { message: "Task not found" } } };
+    return { success: true, data: task, message: "Task fetched" };
   }
 };
 

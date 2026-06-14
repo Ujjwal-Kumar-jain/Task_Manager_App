@@ -1,39 +1,59 @@
-import axiosInstance from "../utils/axiosInstance";
+import mockDB from "./mockDB";
 
-/**
- * Report Service
- * Handles downloading of Excel reports using browser-based file downloads.
- */
 const reportService = {
-  /**
-   * Export detailed task report as an Excel file.
-   */
   async exportTasks() {
-    const response = await axiosInstance.get("/reports/tasks", {
-      responseType: "blob", // Important for handling binary data
+    const tasks = mockDB.getTasks();
+    
+    // Create CSV content
+    const headers = ["ID", "Title", "Status", "Priority", "Assigned To", "Created At"];
+    const csvRows = [headers.join(",")];
+    
+    tasks.forEach(task => {
+      csvRows.push([
+        task._id,
+        `"${(task.title || "").replace(/"/g, '""')}"`,
+        task.status,
+        task.priority,
+        task.assignedTo,
+        task.createdAt
+      ].join(","));
     });
+    
+    const csvContent = csvRows.join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
 
-    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", "tasks_report.xlsx");
+    link.setAttribute("download", "tasks_report.csv");
     document.body.appendChild(link);
     link.click();
     link.parentNode.removeChild(link);
   },
 
-  /**
-   * Export user task summary report as an Excel file.
-   */
   async exportUsers() {
-    const response = await axiosInstance.get("/reports/users", {
-      responseType: "blob",
+    const users = mockDB.getUsers();
+    
+    const headers = ["ID", "Name", "Email", "Role", "Active"];
+    const csvRows = [headers.join(",")];
+    
+    users.forEach(user => {
+      csvRows.push([
+        user._id,
+        `"${(user.name || "").replace(/"/g, '""')}"`,
+        user.email,
+        user.role,
+        user.isActive
+      ].join(","));
     });
+    
+    const csvContent = csvRows.join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
 
-    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", "users_report.xlsx");
+    link.setAttribute("download", "users_report.csv");
     document.body.appendChild(link);
     link.click();
     link.parentNode.removeChild(link);

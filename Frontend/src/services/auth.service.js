@@ -1,60 +1,94 @@
-import axiosInstance from "../utils/axiosInstance";
+import mockDB from "./mockDB";
 
-/**
- * Authentication Service
- * Handles user login, signup, profile management, and logout.
- */
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 const authService = {
-  /**
-   * Register a new user.
-   */
   async signup(userData) {
-    const response = await axiosInstance.post("/auth/signup", userData);
-    return response.data;
+    await delay(500);
+    const users = mockDB.getUsers();
+    
+    if (users.some(u => u.email === userData.email)) {
+      throw { response: { data: { message: "Email already exists" } } };
+    }
+
+    const newUser = {
+      _id: mockDB.generateId(),
+      name: userData.name,
+      email: userData.email,
+      password: userData.password,
+      role: userData.adminJoinCode === "123456" ? "admin" : "user",
+      profileImageUrl: userData.profileImageUrl || "",
+      isActive: true,
+      createdAt: new Date().toISOString()
+    };
+
+    users.push(newUser);
+    mockDB.setUsers(users);
+
+    const { password, ...userWithoutPassword } = newUser;
+    return { success: true, data: userWithoutPassword, message: "User created successfully" };
   },
 
-  /**
-   * Log in an existing user.
-   */
   async signin(email, password) {
-    const response = await axiosInstance.post("/auth/signin", { email, password });
-    return response.data;
+    await delay(500);
+    const users = mockDB.getUsers();
+    const user = users.find(u => u.email === email);
+
+    if (!user || user.password !== password) {
+      throw { response: { data: { message: "Invalid email or password" } } };
+    }
+
+    if (!user.isActive) {
+      throw { response: { data: { message: "Account is inactive" } } };
+    }
+
+    const { password: _, ...userWithoutPassword } = user;
+    localStorage.setItem("current_user", JSON.stringify(userWithoutPassword));
+
+    return { success: true, data: userWithoutPassword, message: "Login successful" };
   },
 
-  /**
-   * Log out the current user.
-   */
   async signout() {
-    const response = await axiosInstance.post("/auth/sign-out");
-    return response.data;
+    await delay(300);
+    localStorage.removeItem("current_user");
+    return { success: true, message: "Logged out successfully" };
   },
 
-  /**
-   * Fetch the current user's profile.
-   */
   async getUserProfile() {
-    const response = await axiosInstance.get("/auth/user-profile");
-    return response.data;
+    await delay(300);
+    const currentUser = JSON.parse(localStorage.getItem("current_user"));
+    if (!currentUser) throw { response: { data: { message: "Unauthorized" } } };
+    
+    const users = mockDB.getUsers();
+    const user = users.find(u => u._id === currentUser._id);
+    if (!user) throw { response: { data: { message: "User not found" } } };
+
+    const { password, ...userWithoutPassword } = user;
+    return { success: true, data: userWithoutPassword };
   },
 
-  /**
-   * Update the current user's profile.
-   */
   async updateProfile(profileData) {
-    const response = await axiosInstance.put("/auth/update-profile", profileData);
-    return response.data;
+    await delay(500);
+    const currentUser = JSON.parse(localStorage.getItem("current_user"));
+    if (!currentUser) throw { response: { data: { message: "Unauthorized" } } };
+
+    const users = mockDB.getUsers();
+    const index = users.findIndex(u => u._id === currentUser._id);
+    if (index === -1) throw { response: { data: { message: "User not found" } } };
+
+    const updatedUser = { ...users[index], ...profileData };
+    users[index] = updatedUser;
+    mockDB.setUsers(users);
+
+    const { password, ...userWithoutPassword } = updatedUser;
+    localStorage.setItem("current_user", JSON.stringify(userWithoutPassword));
+
+    return { success: true, data: userWithoutPassword, message: "Profile updated successfully" };
   },
 
-  /**
-   * Upload a profile image.
-   */
   async uploadImage(formData) {
-    const response = await axiosInstance.post("/auth/upload-image", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
-    return response.data;
+    await delay(800);
+    return { success: true, imageUrl: "https://via.placeholder.com/150", message: "Image uploaded successfully" };
   }
 };
 

@@ -1,34 +1,52 @@
-import axiosInstance from "../utils/axiosInstance";
+import mockDB from "./mockDB";
 
-/**
- * User Service
- * Handles user management and permissions-related queries.
- */
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const getCurrentUser = () => JSON.parse(localStorage.getItem("current_user"));
+
 const userService = {
-  /**
-   * Fetch a list of team members (Admin only).
-   * Includes task counts per user.
-   */
   async getUsers() {
-    const response = await axiosInstance.get("/users/get-users");
-    return response.data;
+    await delay(300);
+    const currentUser = getCurrentUser();
+    if (!currentUser || currentUser.role !== "admin") throw { response: { data: { message: "Unauthorized" } } };
+
+    const users = mockDB.getUsers();
+    const tasks = mockDB.getTasks();
+
+    const usersWithCounts = users.map(user => {
+      const userTasks = tasks.filter(t => t.team && t.team.includes(user._id) || t.assignedTo === user._id);
+      const { password, ...userWithoutPassword } = user;
+      return {
+        ...userWithoutPassword,
+        tasksCount: userTasks.length,
+        pendingTasks: userTasks.filter(t => t.status === "Pending").length,
+        inProgressTasks: userTasks.filter(t => t.status === "In Progress").length,
+        completedTasks: userTasks.filter(t => t.status === "Completed").length,
+      };
+    });
+
+    return { success: true, data: usersWithCounts, message: "Users fetched" };
   },
 
-  /**
-   * Fetch a specific user's details by their ID.
-   */
   async getUserById(id) {
-    const response = await axiosInstance.get(`/users/${id}`);
-    return response.data;
+    await delay(200);
+    const users = mockDB.getUsers();
+    const user = users.find(u => u._id === id);
+    if (!user) throw { response: { data: { message: "User not found" } } };
+    
+    const { password, ...userWithoutPassword } = user;
+    return { success: true, data: userWithoutPassword, message: "User fetched" };
   },
 
-  /**
-   * Delete a user by their ID (Admin only).
-   * Note: The current backend actually supports deleting a user (user_route line 11).
-   */
   async deleteUser(id) {
-    const response = await axiosInstance.delete(`/users/${id}`);
-    return response.data;
+    await delay(300);
+    const currentUser = getCurrentUser();
+    if (!currentUser || currentUser.role !== "admin") throw { response: { data: { message: "Unauthorized" } } };
+
+    let users = mockDB.getUsers();
+    users = users.filter(u => u._id !== id);
+    mockDB.setUsers(users);
+
+    return { success: true, message: "User deleted" };
   }
 };
 
