@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react"
-import axiosInstance from "../utils/axiosInstance"
+import userService from "../services/user.service"
 import { FaUsers } from "react-icons/fa"
 import Modal from "./Modal"
 import AvatarGroup from "./AvatarGroup"
@@ -9,13 +9,11 @@ const SelectedUsers = ({ selectedUser, setSelectedUser }) => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [tempSelectedUser, setTempSelectedUser] = useState([])
 
-  // console.log(allUsers)
-
   const getAllUsers = async () => {
     try {
-      const response = await axiosInstance.get("/users/get-users")
+      const response = await userService.getUsers()
 
-      if (response.data?.length > 0) {
+      if (response.success && response.data?.length > 0) {
         setAllUsers(response.data)
       }
     } catch (error) {
